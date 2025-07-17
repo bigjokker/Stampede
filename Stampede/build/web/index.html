@@ -1,688 +1,489 @@
-import pygame
-import random
-import math
+<html lang="en-us"><script src="https://pygame-web.github.io/archives/0.9/pythons.js" type=module id=site data-LINES=57 data-CONSOLE=25 data-python=python3.12 data-os=vtx,fs,snd,gui async defer>#<!--
+
+print("""
+Loading stampede from stampede.apk
+    Pygbag Version : 0.9.2
+    Template Version : 0.9.0
+    Python  : 3.12
+    CDN URL : https://pygame-web.github.io/archives/0.9/
+    Screen  : 1280x720
+    Title   : stampede
+    Folder  : stampede
+    Authors : pgw
+    SPDX-License-Identifier: cookiecutter.spdx
+
+""")
+
+
+# screen pixels (real, hardware)
+WIDTH=1024  # 1280
+HEIGHT=600  # 720
+
+# reference/idealized screen pixels
+REFX = 1980
+REFY = 1080
+
+def u(real, ref, v):
+    if abs(v)<0.9999999:
+        result = int( (float(real)/100.0) * (v*1000))
+        if v<0:
+            return real-result
+        return result
+    return int( (real/ref) * v )
+
+def ux(*argv):
+    global WIDTH, REFX
+    acc = 0
+    for v in argv:
+        acc += u(WIDTH, REFX, v)
+    return acc
+
+def uy(*argv):
+    global HEIGHT, REFY
+    acc = 0
+    for v in argv:
+        acc += u(HEIGHT, REFY, v)
+    return acc
+
+
+
+
+# do not rename
+async def custom_site():
+
+    import sys
+    import asyncio
+    import platform
+    import json
+    from pathlib import Path
+
+
+
+    import embed
+
+
+    platform.document.body.style.background = "#7f7f7f"
+
+    import pygame
+
+    def compose():
+        pygame.display.update()
+        window.chromakey(None, *screen.get_colorkey(), 40)
+
+    pygame.init()
+    pygame.font.init()
+
+    screen = pygame.display.set_mode([ux(.100),uy(.100)], pygame.SRCALPHA, 32)
+    screen.set_colorkey( (0,0,0,0), pygame.RLEACCEL )
+    screen.fill( (0,0,0,0) )
+
+    compose()
+
+    platform.window.transfer.hidden = true
+    platform.window.canvas.style.visibility = "visible"
+
+
+
+    apk = "stampede.apk"
+
+    bundle = "stampede"
+
+    # the C or js loader could do that but be explicit.
+    appdir = Path(f"/data/data/{bundle}") # /data/data/stampede
+    appdir.mkdir()
+
+
+    # mount apk
+
+    cfg = {
+        "io": "url",
+        "type":"mount",
+        "mount" : {
+            "point" : appdir.as_posix(),
+            "path" : "/",
+        },
+        "path" : f"/ => {appdir.as_posix()}",
+    }
+
+
+    track = platform.window.MM.prepare(apk, json.dumps(cfg))
+
+    marginx = ux(.020) # 20%
+    marginy = uy(.045) # 45%
+
+
+    def pg_bar(pos):
+        nonlocal marginx, marginy
+        # resolution of progress bar, recalculate since it may not be know yet.
+        total = track.len or 10  # avoid div0
+        slot = ux(.060)/ total # 60%
+
+        pygame.draw.rect(screen,(10,10,10),( marginx-ux(10), marginy-uy(10), (total*slot)+ux(20), uy(110) ) )
+        pygame.draw.rect(screen,(0,255,0), ( marginx, marginy, track.pos*slot, uy(90)) )
+
+    # wait until zip mount + overlayfs is complete
+    while not track.ready:
+        pg_bar(track.pos)
+        compose()
+        await asyncio.sleep(.1)
+
+    # fill it up in case it was cached and instant download
+    pg_bar(track.len)
+    compose()
+
+
+    # preloader will change dir and prepend it to sys.path
+    platform.run_main(PyConfig, loaderhome= appdir / "assets", loadermain=None)
+
+
+    # wait preloading complete
+    # that includes images and wasm compilation of bundled modules
+    while embed.counter()<0:
+        await asyncio.sleep(.1)
+
+    main = appdir / "assets" / "main.py"
+
+    # start async top level machinery and add a console.
+    await TopLevel_async_handler.start_toplevel(platform.shell, console=window.python.config.debug)
+
+    # now that apk is mounted we have access to font cache
+    # but we need to fill __file__ that is not yet set
+    __import__(__name__).__file__ = str(main)
+
+
+    # now make a prompt
+    fnt = pygame.sysfont.SysFont("freesans",  uy(80) )
+
+    def ui_callback(pkg, error=None):
+        nonlocal fnt
+        if error:
+            prompt = fnt.render(f"{error}", True, "black")
+        else:
+            prompt = fnt.render(f"Setting [{pkg}] up", True, "black")
+        pg_bar(track.len)
+        screen.blit(prompt, ( marginx+ ux(80), marginy - uy(10) ) )
+        compose()
+
+    # test/wait if user media interaction required
+    if not platform.window.MM.UME:
+
+        # now make a prompt
+        fnt = pygame.sysfont.SysFont("freesans",  uy(80) )
+        prompt = fnt.render("Ready to start !", True, "blue")
+        pg_bar(track.len)
+        screen.blit(prompt, ( marginx+ ux(80), marginy - uy(10) ) )
+        compose()
+        print("""
+        * Waiting for media user engagement : please click/touch page *
+    """)
+        while not platform.window.MM.UME:
+            await asyncio.sleep(.1)
+
+    # cleanup
+    screen.fill( (0,0,0,0) )
+    pygame.display.flip()
+
+    await shell.runpy(main, callback=ui_callback)
+
+
+
 import asyncio
-import sys
-import os
-import ctypes
 
-# Set Windows audio driver workaround before init
-if os.name == 'nt':
-    os.environ['SDL_AUDIODRIVER'] = 'directsound'
+asyncio.run( custom_site() )
 
-pygame.init()
 
-# Screen setup
-WIDTH = 800
-HEIGHT = 600
-flags = pygame.RESIZABLE | pygame.SCALED
-screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
-pygame.display.set_caption("Stampede")
 
-# Colors
-WHITE = (255, 255, 255)
-TAN = (210, 180, 140)
-LIGHT_BROWN = (245, 222, 179)
-BLACK = (0, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-RED = (255, 0, 0)
 
-# Gameplay boundaries
-TOP_LIMIT = 100
-BOTTOM_LIMIT = 500
-LANE_SPACING = 50
-LANES = [TOP_LIMIT + i * LANE_SPACING for i in range((BOTTOM_LIMIT - TOP_LIMIT) // LANE_SPACING)]
 
-# Load sprites (assume preloaded in pygbag.toml, no existence checks)
-sprite_files = {
-    "cowboy_stand.png": (80, 80),
-    "cowboy_move_1.png": (80, 80),
-    "cowboy_move_2.png": (80, 80),
-    "cattle_slow_1.png": (100, 60),
-    "cattle_slow_2.png": (100, 60),
-    "cattle_fast_1.png": (100, 60),
-    "cattle_fast_2.png": (100, 60),
-    "cattle_fastest_1.png": (100, 60),
-    "cattle_fastest_2.png": (100, 60),
-    "desert_bg.png": (800, 600),
-    "cactus_1.png": (25, 25),
-    "cactus_2.png": (25, 25),
-    "cactus_3.png": (25, 25),
-    "rope_segment.png": (10, 5),
-    "lasso_loop.png": (30, 30),
-    "cattle_black.png": (100, 60),
-    "skull.png": (50, 50)
+
+
+
+
+
+
+
+# BEGIN BLOCK
+#
+# now this is the html part you can (and should) customize
+# It is not mandatory : pygame-script when it reads the first line (also called
+# shebang ) of above code create absolute minimal widget set
+# required for running with default rules
+#
+# do not alter that comment block it is separating python code from html code
+# =============================================================================
+# --></script><head><!--
+//=============================================================================
+//
+//
+//
+//
+//
+//
+//
+
+    {%- if cookiecutter.comment != "" -%}
+{{cookiecutter.comment}}
+    {% endif %}
+
+--><script type="application/javascript">
+// END BLOCK
+
+
+
+// this dict is available under PyConfig.config from __main__
+
+config = {
+    xtermjs : "1" ,
+    _sdl2 : "canvas",
+    user_canvas : 0,
+    user_canvas_managed : 0,
+    ume_block : 1,
+    can_close : 0,
+    archive : "stampede",
+    gui_debug : 3,
+    cdn : "https://pygame-web.github.io/archives/0.9/",
+    autorun : 0,
+    PYBUILD : "3.12"
 }
 
-try:
-    for filename, size in sprite_files.items():
-        sprite_files[filename] = pygame.transform.scale(pygame.image.load(filename), size)
-except Exception as e:
-    # Fallback surfaces if loading fails
-    COWBOY_STAND = pygame.Surface((80, 80))
-    COWBOY_STAND.fill((255, 0, 0))
-    COWBOY_FRAMES = [pygame.Surface((80, 80)) for _ in range(2)]
-    for frame in COWBOY_FRAMES: frame.fill((255, 0, 0))
-    CATTLE_SLOW_FRAMES = [pygame.Surface((100, 60)) for _ in range(2)]
-    for frame in CATTLE_SLOW_FRAMES: frame.fill((139, 69, 19))
-    CATTLE_FAST_FRAMES = [pygame.Surface((100, 60)) for _ in range(2)]
-    for frame in CATTLE_FAST_FRAMES: frame.fill((165, 42, 42))
-    CATTLE_FASTEST_FRAMES = [pygame.Surface((100, 60)) for _ in range(2)]
-    for frame in CATTLE_FASTEST_FRAMES: frame.fill((200, 0, 0))
-    BACKGROUND = pygame.Surface((WIDTH, HEIGHT))
-    BACKGROUND.fill((100, 100, 100))
-    OBSTACLE_FRAMES = [pygame.Surface((25, 25)) for _ in range(3)]
-    for frame in OBSTACLE_FRAMES: frame.fill((0, 255, 0))
-    ROPE_SEGMENT = pygame.Surface((10, 5))
-    ROPE_SEGMENT.fill(TAN)
-    LASSO_LOOP = pygame.Surface((30, 30))
-    LASSO_LOOP.fill(TAN)
-    POWER_UP = pygame.Surface((100, 60))
-    POWER_UP.fill((0, 0, 0))
-    SKULL = pygame.Surface((50, 50))
-    SKULL.fill((255, 255, 255))
-else:
-    COWBOY_STAND = sprite_files["cowboy_stand.png"]
-    COWBOY_FRAMES = [sprite_files["cowboy_move_1.png"], sprite_files["cowboy_move_2.png"]]
-    CATTLE_SLOW_FRAMES = [sprite_files["cattle_slow_1.png"], sprite_files["cattle_slow_2.png"]]
-    CATTLE_FAST_FRAMES = [sprite_files["cattle_fast_1.png"], sprite_files["cattle_fast_2.png"]]
-    CATTLE_FASTEST_FRAMES = [sprite_files["cattle_fastest_1.png"], sprite_files["cattle_fastest_2.png"]]
-    BACKGROUND = sprite_files["desert_bg.png"]
-    OBSTACLE_FRAMES = [sprite_files["cactus_1.png"], sprite_files["cactus_2.png"], sprite_files["cactus_3.png"]]
-    ROPE_SEGMENT = sprite_files["rope_segment.png"]
-    LASSO_LOOP = sprite_files["lasso_loop.png"]
-    POWER_UP = sprite_files["cattle_black.png"]
-    SKULL = sprite_files["skull.png"]
+</script>
 
-# Load sounds with platform-specific extension
-pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096, allowedchanges=0)  # Add allowedchanges=0 to avoid iOS issues
+    <title>stampede</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="height=device-height, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
 
-# Reset audio to default device on Windows (local only)
-if os.name == 'nt' and sys.platform != "emscripten":
-    try:
-        MMDEVAPI = ctypes.windll.winmm
-        MMDEVAPI.waveOutMessage(0, 0x400 + 11, 0, 0)  # DRV_QUERYDEVICEINTERFACE (simplified reset)
-    except Exception as e:
-        print(f"Audio reset failed: {e}")
+    <link rel="prefetch" href="https://pygame-web.github.io/archives/0.9/pythonrc.py">
+    <link rel="prefetch" href="https://pygame-web.github.io/archives/0.9/vt/xterm.js">
+    <link rel="prefetch" href="https://pygame-web.github.io/archives/0.9/vt/xterm-addon-image.js">
+    <link rel="prefetch" href="https://pygame-web.github.io/archives/0.9/vt/xterm-addon-image.js">
 
-sound_ext = ".ogg" if sys.platform == "emscripten" else ".wav"
-try:
-    LASSO_SOUND = pygame.mixer.Sound("lasso" + sound_ext)
-    POINT_SOUND = pygame.mixer.Sound("point" + sound_ext)
-    HIT_SOUND = pygame.mixer.Sound("hit" + sound_ext)
-    YEHA_SOUND = pygame.mixer.Sound("yeha" + sound_ext)
-    YEHA_CHANNEL = pygame.mixer.Channel(0)
-except Exception as e:
-    print(f"Sound loading failed: {e}")
-    # Stub sounds if failed
-    class StubSound:
-        def play(self): pass
-        def stop(self): pass
-    LASSO_SOUND = StubSound()
-    POINT_SOUND = StubSound()
-    HIT_SOUND = StubSound()
-    YEHA_SOUND = StubSound()
 
-# Conditional import for browser storage
-if sys.platform == "emscripten":
-    from platform import window
+    <link rel="icon" type="image/png" href="favicon.png" sizes="16x16">
 
-# Helper functions
-def load_high_score():
-    if sys.platform == "emscripten":
-        high_score_str = window.localStorage.getItem("stampede_high_score")
-        return int(high_score_str) if high_score_str else 0
-    else:
-        try:
-            with open("high_score.txt", "r") as file:
-                return int(file.read().strip())
-        except (FileNotFoundError, ValueError):
-            return 0
+    <style>
+        #status {
+            display: inline-block;
+            vertical-align: top;
+            margin-top: 20px;
+            margin-left: 30px;
+            font-weight: bold;
+            color: rgb(120, 120, 120);
+        }
 
-def save_high_score(score):
-    if sys.platform == "emscripten":
-        window.localStorage.setItem("stampede_high_score", str(score))
-    else:
-        with open("high_score.txt", "w") as file:
-            file.write(str(score))
+        #progress {
+            height: 20px;
+            width: 300px;
+        }
 
-def load_start_score():
-    return 0
+        div.emscripten { text-align: center; }
+        div.emscripten_border { border: 1px solid black; }
+        div.thick_border { border: 4px solid black; }
 
-# Player class
-class Player:
-    def __init__(self):
-        self.width = 80
-        self.height = 80
-        self.x = 50
-        self.y = (TOP_LIMIT + BOTTOM_LIMIT) // 2
-        self.speed = 10
-        self.lassolength = 0
-        self.lassomax = 180
-        self.lasso_loop_radius = 15
-        self.frames = COWBOY_FRAMES
-        self.stand_frame = COWBOY_STAND
-        self.frame_index = 0
-        self.frame_timer = 0
-        self.lasso_active = False
-        self.touch_ids = {}  # Track touch fingers: finger_id -> (start_pos, is_dragging)
-        self.drag_finger = None  # Finger ID for dragging
-        self.lasso_triggered = False
+        /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+        /* average size of droid screen 470dp x 320dp  */
+        canvas.emscripten {
+            border: 0px none;
+            background-color: transparent;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
 
-        self.fixed_angle = math.degrees(math.atan2(30, 180))
-        self.rotated_segment = pygame.transform.rotate(ROPE_SEGMENT, -self.fixed_angle)
-        self.rotated_loop = pygame.transform.rotate(LASSO_LOOP, -self.fixed_angle)
+            padding: 0;
+            margin: 0 auto;
 
-    def handle_touch_down(self, finger_id, pos):
-        self.touch_ids[finger_id] = (pos, False)
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
 
-    def handle_touch_move(self, finger_id, pos):
-        if finger_id in self.touch_ids:
-            start_pos, _ = self.touch_ids[finger_id]
-            dx = abs(pos[0] - start_pos[0])
-            dy = abs(pos[1] - start_pos[1])
-            if dy > 10 or dx > 10:
-                self.touch_ids[finger_id] = (start_pos, True)
-                if self.drag_finger is None:
-                    self.drag_finger = finger_id
-            if self.touch_ids[finger_id][1]:  # is_dragging
-                if finger_id == self.drag_finger:
-                    target_y = pos[1] - self.height // 2
-                    self.y = max(TOP_LIMIT, min(target_y, BOTTOM_LIMIT - self.height))
+        body {
+            font-family: arial;
+            margin: 0;
+            padding: none;
+            background-color:powderblue;
+        }
 
-    def handle_touch_up(self, finger_id, pos):
-        if finger_id in self.touch_ids:
-            start_pos, is_dragging = self.touch_ids[finger_id]
-            if not is_dragging:
-                # It's a tap, activate lasso if possible
-                if self.lassolength == 0:
-                    LASSO_SOUND.play()
-                    self.lassolength = 1
-                    self.lasso_active = True
-                    self.lasso_triggered = True
-            if finger_id == self.drag_finger:
-                self.drag_finger = None
-            del self.touch_ids[finger_id]
+        .topright{
+           position:absolute;
+           top:0px;
+           right:0px;
+        }
 
-    def move(self):
-        keys = pygame.key.get_pressed()
-        # Keyboard controls (for desktop testing)
-        if keys[pygame.K_UP] and self.y > TOP_LIMIT:
-            self.y -= self.speed
-        if keys[pygame.K_DOWN] and self.y < BOTTOM_LIMIT - self.height:
-            self.y += self.speed
-        if keys[pygame.K_SPACE] and self.lassolength == 0:
-            LASSO_SOUND.play()
-            self.lassolength = 1
-            self.lasso_active = True
+        .bottomright {
+            position:absolute;
+            top: 40%;
+            right: 0px;
+        }
 
-        # Lasso extension logic
-        if self.lasso_active:
-            if self.lassolength < self.lassomax:
-                self.lassolength += 15
-            else:
-                self.lassolength = 0
-                self.lasso_active = False
-                self.lasso_triggered = False
+        .center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-        self.frame_timer += 1
-        if self.frame_timer >= 10:
-            self.frame_timer = 0
-            self.frame_index = (self.frame_index + 1) % 2
+        .trinfo{
+           position:relative;
+           right:0px;
+           border: 1px solid black;
+        }
 
-    def draw(self, game_state):
-        if game_state == "start":
-            screen.blit(self.stand_frame, (self.x, self.y))
-        else:
-            screen.blit(self.frames[self.frame_index], (self.x, self.y))
-            if self.lassolength > 0:
-                start_x = self.x + self.width
-                start_y = self.y + 10
-                end_x = start_x + self.lassolength
-                end_y = start_y + (30 * self.lassolength / self.lassomax)
-                dx = end_x - start_x
-                dy = end_y - start_y
-                segment_length = 10
-                num_segments = self.lassolength // segment_length
-                for i in range(num_segments):
-                    t = (i + 0.5) * (segment_length / self.lassolength)
-                    seg_x = start_x + dx * t
-                    seg_y = start_y + dy * t
-                    screen.blit(self.rotated_segment, self.rotated_segment.get_rect(center=(seg_x, seg_y)))
-                screen.blit(self.rotated_loop, self.rotated_loop.get_rect(center=(end_x, end_y)))
+        .framed{
+           position:relative;
+           top:150px;
+           right:10px;
+           border: 1px solid black;
+        }
+    </style>
 
-# Cattle class
-class Cattle:
-    def __init__(self, type_="slow"):
-        self.width = 100
-        self.height = 60
-        self.x = WIDTH
-        free_lanes = [lane for lane in LANES if lane not in occupied_lanes]
-        self.y = random.choice(free_lanes) if free_lanes else -100
-        if self.y >= 0:
-            occupied_lanes.add(self.y)
-        if type_ == "fastest":
-            self.base_speed = random.uniform(4.5, 5.5)
-            self.points = 15
-            self.frames = CATTLE_FASTEST_FRAMES
-        elif type_ == "fast":
-            self.base_speed = random.uniform(3.5, 4.5)
-            self.points = 10
-            self.frames = CATTLE_FAST_FRAMES
-        else:
-            self.base_speed = random.uniform(2.5, 3.5)
-            self.points = 5
-            self.frames = CATTLE_SLOW_FRAMES
-        self.speed = self.base_speed
-        self.frame_index = 0
-        self.frame_timer = 0
-        self.hit_cowboy = False
+    <script src="https://pygame-web.github.io/archives/0.9//browserfs.min.js"></script>
 
-    def move(self):
-        if self.hit_cowboy:
-            self.x += self.speed * 5
-            if self.x >= WIDTH:
-                self.speed = self.base_speed
-                self.hit_cowboy = False
-        else:
-            self.x -= self.speed
-        if self.speed > 0:
-            self.frame_timer += 1
-            frame_rate = 10 if self.speed < 3 else 7
-            if self.frame_timer >= frame_rate:
-                self.frame_timer = 0
-                self.frame_index = (self.frame_index + 1) % 2
+</head>
 
-    def remove(self):
-        if self.y in occupied_lanes:
-            occupied_lanes.remove(self.y)
+<body>
 
-    def draw(self):
-        if self.y >= 0:
-            screen.blit(self.frames[self.frame_index], (self.x, self.y))
+    <div id="transfer" align=center>
+<!--        <div class="spinner" id='spinner'></div> -->
+        <div class="emscripten" id="status">Downloading...</div>
+        <div class="emscripten">
+            <progress value="0" max="100" id="progress"></progress>
+        </div>
+    </div>
 
-# PowerUp class
-class PowerUp:
-    def __init__(self):
-        self.width = 100
-        self.height = 60
-        self.x = WIDTH
-        free_lanes = [lane for lane in LANES if lane not in occupied_lanes]
-        self.y = random.choice(free_lanes) if free_lanes else -100
-        if self.y >= 0:
-            occupied_lanes.add(self.y)
-        self.speed = 2.0
-        self.sprite = POWER_UP
 
-    def move(self):
-        self.x -= self.speed
+    <canvas class="emscripten" id="canvas"
+width="1px"
+height="1px"
+    oncontextmenu="event.preventDefault()" tabindex=1>
+    </canvas>
 
-    def remove(self):
-        if self.y in occupied_lanes:
-            occupied_lanes.remove(self.y)
+    <div id=html></div>
 
-    def draw(self):
-        if self.y >= 0:
-            screen.blit(self.sprite, (self.x, self.y))
+    <div id=crt  class=bottomright >
 
-# Obstacle class
-class Obstacle:
-    def __init__(self):
-        self.width = 25
-        self.height = 25
-        self.x = WIDTH
-        free_lanes = [lane for lane in LANES if lane not in occupied_lanes]
-        self.y = random.choice(free_lanes) if free_lanes else -100
-        if self.y >= 0:
-            occupied_lanes.add(self.y)
-        self.speed = 2
-        self.frames = OBSTACLE_FRAMES
-        self.frame_index = 0
-        self.frame_timer = 0
+        <div id="system" hidden>
+            <div class="button-container">
+                <button id="aiostop" disabled>AIO ⏏︎</button>
+                <button id="aiopaused_true" disabled>AIO ■</button>
+                <button id="aiopaused_false" disabled>AIO ▶</button>
+                <button id="pygame_mixer_music_pause" disabled>Music ■</button>
+            </div>
 
-    def move(self):
-        self.x -= self.speed
-        self.frame_timer += 1
-        if self.frame_timer >= 10:
-            self.frame_timer = 0
-            self.frame_index = (self.frame_index + 1) % 3
+            <div class="button-container">
+                <div id=load_min>min</div>
+                <div id=load_avg>avg</div>
+                <div id=load_max>max</div>
+              <button id="load_rst" disabled>RESET</button>
+            </div>
 
-    def remove(self):
-        if self.y in occupied_lanes:
-            occupied_lanes.remove(self.y)
+            <div id="level">(battery level unknown)</div>
+            <div id="stateBattery">(charging state unknown)</div>
 
-    def draw(self):
-        if self.y >= 0:
-            screen.blit(self.frames[self.frame_index], (self.x, self.y))
+        </div>
 
-# Skull class
-class Skull:
-    def __init__(self):
-        self.width = 50
-        self.height = 50
-        self.x = WIDTH
-        free_lanes = [lane for lane in LANES if lane not in occupied_lanes]
-        self.y = random.choice(free_lanes) if free_lanes else -100
-        if self.y >= 0:
-            occupied_lanes.add(self.y)
-        self.speed = 2
-        self.sprite = SKULL
+        <div id=box class="emscripten_border" hidden=true>
 
-    def move(self):
-        self.x -= self.speed
+            <div id="info" class="trinfo"></div>
 
-    def remove(self):
-        if self.y in occupied_lanes:
-            occupied_lanes.remove(self.y)
+            <iframe id="iframe" class="framed" name="iframe"
+width="470px" height="90%"
+allowtransparency="true"
+style="z-index: 10;"
+style="background: #FFFFFF;"
+frameborder="1"
+                allowfullscreen="true"
+                webkitallowfullscreen="true"
+                msallowfullscreen="true"
+                mozallowfullscreen="true"
+                sandbox="allow-same-origin allow-top-navigation allow-scripts allow-pointer-lock"
+                allow="autoplay; fullscreen *; geolocation; microphone; camera; midi; monetization; xr-spatial-tracking; gamepad; gyroscope; accelerometer; xr; cross-origin-isolated"
+                src="https://pygame-web.github.io/archives/0.9/empty.html"
+                scrolling="yes">
+            </iframe>
+        </div>
 
-    def draw(self):
-        if self.y >= 0:
-            screen.blit(self.sprite, (self.x, self.y))
+    </div>
 
-occupied_lanes = set()
 
-async def main():
-    global occupied_lanes
-    # Game variables
-    player = Player()
-    cattle_list = []
-    obstacles = []
-    power_ups = []
-    skulls = []
-    score = 0
-    lives = 3
-    font = pygame.font.Font(None, 36)
-    game_over_font = pygame.font.Font(None, 74)
-    title_font = pygame.font.SysFont("impact", 100)
-    clock = pygame.time.Clock()
-    spawn_timer = 0
-    obstacle_spawn_timer = 0
-    hit_sound_timer = 0
-    hit_sound_interval = random.randint(120, 240)
-    play_time = 0
-    difficulty = 1.0
-    high_score = load_high_score()
-    game_state = "start"
-    MAX_CATTLE = 8
-    power_up_milestones = {350, 500, 750, 1000}
-    spawned_milestones = set()
-    power_up_active = False
-    last_skull_score = 0
+    <div id="dlg" hidden>
+        <input type="file" id="dlg_multifile" multiple accept="image/*">
+        <label for="dlg_multifile">Select files</label>
+    </div>
 
-    # Start/restart button for touch
-    button_font = pygame.font.Font(None, 40)
-    start_rect = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 60)  # For start/restart
+    <div id="pyconsole">
+        <div id="terminal" tabIndex=1 align="left"></div>
+    </div>
 
-    # Game loop
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                save_high_score(high_score)
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                if game_state == "start":
-                    game_state = "play"
-                    score = load_start_score()
-                elif game_state == "game_over":
-                    player = Player()
-                    cattle_list = []
-                    obstacles = []
-                    power_ups = []
-                    skulls = []
-                    occupied_lanes.clear()
-                    score = load_start_score()
-                    lives = 3
-                    spawn_timer = 0
-                    obstacle_spawn_timer = 0
-                    hit_sound_timer = 0
-                    play_time = 0
-                    difficulty = 1.0
-                    spawned_milestones.clear()
-                    power_up_active = False
-                    last_skull_score = 0
-                    game_state = "play"
-            if event.type == pygame.FINGERDOWN:
-                finger_id = event.finger_id
-                pos = (event.x * WIDTH, event.y * HEIGHT)  # Normalize to screen coords
-                if game_state == "start" or game_state == "game_over":
-                    if start_rect.collidepoint(pos):
-                        if game_state == "start":
-                            game_state = "play"
-                            score = load_start_score()
-                        elif game_state == "game_over":
-                            player = Player()
-                            cattle_list = []
-                            obstacles = []
-                            power_ups = []
-                            skulls = []
-                            occupied_lanes.clear()
-                            score = load_start_score()
-                            lives = 3
-                            spawn_timer = 0
-                            obstacle_spawn_timer = 0
-                            hit_sound_timer = 0
-                            play_time = 0
-                            difficulty = 1.0
-                            spawned_milestones.clear()
-                            power_up_active = False
-                            last_skull_score = 0
-                            game_state = "play"
-                elif game_state == "play":
-                    player.handle_touch_down(finger_id, pos)
-            if event.type == pygame.FINGERMOTION:
-                finger_id = event.finger_id
-                pos = (event.x * WIDTH, event.y * HEIGHT)
-                if game_state == "play":
-                    player.handle_touch_move(finger_id, pos)
-            if event.type == pygame.FINGERUP:
-                finger_id = event.finger_id
-                pos = (event.x * WIDTH, event.y * HEIGHT)
-                if game_state == "play":
-                    player.handle_touch_up(finger_id, pos)
-            if event.type == pygame.VIDEORESIZE:
-                # Handle resize to fit screen
-                new_size = event.size
-                screen = pygame.display.set_mode(new_size, pygame.RESIZABLE | pygame.SCALED)
+    <script type="application/javascript">
 
-        if game_state == "start":
-            screen.blit(BACKGROUND, (0, 0))
-            player.draw(game_state)
-            title_text = title_font.render("STAMPEDE", True, LIGHT_BROWN)
-            title_rect = title_text.get_rect(center=(WIDTH//2, HEIGHT//2 - 50))
-            screen.blit(title_text, title_rect)
-            # Draw start button
-            pygame.draw.rect(screen, GREEN, start_rect)
-            start_text = button_font.render("START", True, BLACK)
-            screen.blit(start_text, start_text.get_rect(center=start_rect.center))
-        elif game_state == "play":
-            play_time += 1
+    async function custom_onload(debug_hidden) {
+        // this is called before anything python is loaded
+        // make your js customization here
+        console.log(__FILE__, "custom_onload")
 
-            spawn_timer += 1
-            spawn_rate = max(30, int(60 / difficulty))
-            if spawn_timer >= spawn_rate and len(cattle_list) < MAX_CATTLE:
-                roll = random.random()
-                if score >= 400:
-                    fastest_chance = min(0.3, 0.1 + 0.2 * (play_time - 1800) / 1800) if play_time > 1800 else 0.1
-                    if roll < fastest_chance:
-                        new_cattle = Cattle("fastest")
-                    elif roll < fastest_chance + 0.4:
-                        new_cattle = Cattle("fast")
-                    else:
-                        new_cattle = Cattle("slow")
-                else:
-                    fast_chance = min(0.4, 0.4 * max(0, play_time - 900) / 900) if play_time > 900 else 0.0
-                    new_cattle = Cattle("fast" if roll < fast_chance else "slow")
-                if new_cattle.y >= 0:
-                    cattle_list.append(new_cattle)
-                spawn_timer = 0
-                difficulty = min(difficulty + 0.01, 2.5)
+        pyconsole.hidden = debug_hidden
+        system.hidden = debug_hidden
+        transfer.hidden = debug_hidden
+        info.hidden = debug_hidden
+        box.hidden =  debug_hidden
 
-            for milestone in power_up_milestones:
-                if score >= milestone and milestone not in spawned_milestones:
-                    new_power_up = PowerUp()
-                    if new_power_up.y >= 0:
-                        power_ups.append(new_power_up)
-                        spawned_milestones.add(milestone)
-                        power_up_active = True
-                        HIT_SOUND.stop()
+    }
 
-            obstacle_spawn_timer += 1
-            if obstacle_spawn_timer >= 180:
-                new_obstacle = Obstacle()
-                if new_obstacle.y >= 0:
-                    obstacles.append(new_obstacle)
-                obstacle_spawn_timer = 0
+    function custom_prerun(){
+        // no python main and no (MEMFS + VFS) yet.
+        console.log(__FILE__, "custom_prerun")
 
-            if score >= last_skull_score + 250 and not any(s.x > WIDTH - 100 for s in skulls):
-                new_skull = Skull()
-                if new_skull.y >= 0:
-                    skulls.append(new_skull)
-                    last_skull_score = score
+    }
 
-            if len(cattle_list) > 0 and not power_up_active:
-                hit_sound_timer += 1
-                if hit_sound_timer >= hit_sound_interval:
-                    HIT_SOUND.play()
-                    hit_sound_interval = random.randint(120, 240)
-                    hit_sound_timer = 0
+    function custom_postrun(){
+        // python main and no VFS filesystem yet.
+        console.log(__FILE__, "custom_postrun")
 
-            player.move()
-            
-            for cattle in cattle_list[:]:
-                cattle.move()
-                if player.lassolength > 0:
-                    lasso_end_x = player.x + player.width + player.lassolength
-                    lasso_end_y = player.y + 10 + (30 * player.lassolength / player.lassomax)
-                    lasso_end = (lasso_end_x, lasso_end_y)
-                    cattle_rect = pygame.Rect(cattle.x, cattle.y, cattle.width, cattle.height)
-                    if cattle_rect.clipline((player.x + player.width, player.y + 10), lasso_end):
-                        score += cattle.points
-                        high_score = max(high_score, score)
-                        cattle.remove()
-                        cattle_list.remove(cattle)
-                        POINT_SOUND.play()
-                        continue
-                if (cattle.x < player.x + player.width and 
-                    cattle.y < player.y + player.height and 
-                    cattle.y + cattle.height > player.y and 
-                    not cattle.hit_cowboy):
-                    cattle.hit_cowboy = True
-                    continue
-                if cattle.x < 0 and not cattle.hit_cowboy:
-                    lives -= 1
-                    cattle.remove()
-                    cattle_list.remove(cattle)
-                    HIT_SOUND.play()
+        // prevent ff horizontal scroll
+        window.addEventListener("keydown", function(e) {
+            if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+                if (!python.config.debug)
+                    e.preventDefault();
+            }
+        }, false);
 
-            for power_up in power_ups[:]:
-                power_up.move()
-                if player.lassolength > 0:
-                    lasso_end_x = player.x + player.width + player.lassolength
-                    lasso_end_y = player.y + 10 + (30 * player.lassolength / player.lassomax)
-                    lasso_end = (lasso_end_x, lasso_end_y)
-                    power_up_rect = pygame.Rect(power_up.x, power_up.y, power_up.width, power_up.height)
-                    if power_up_rect.clipline((player.x + player.width, player.y + 10), lasso_end):
-                        lives += 1
-                        power_up.remove()
-                        power_ups.remove(power_up)
-                        if not power_ups:
-                            power_up_active = False
-                        LASSO_SOUND.stop()
-                        POINT_SOUND.stop()
-                        HIT_SOUND.stop()
-                        YEHA_CHANNEL.play(YEHA_SOUND)
-                        continue
-                if power_up.x < -power_up.width:
-                    power_up.remove()
-                    power_ups.remove(power_up)
-                    if not power_ups:
-                        power_up_active = False
+    }
 
-            for obstacle in obstacles[:]:
-                obstacle.move()
-                if (obstacle.x < player.x + player.width and 
-                    obstacle.x + obstacle.width > player.x and
-                    obstacle.y < player.y + player.height and 
-                    obstacle.y + obstacle.height > player.y):
-                    lives -= 1
-                    obstacle.remove()
-                    obstacles.remove(obstacle)
-                    if not power_up_active:
-                        HIT_SOUND.play()
-                if obstacle.x < -obstacle.width:
-                    obstacle.remove()
-                    obstacles.remove(obstacle)
+    function debug() {
+        // allow to gain access to dev tools from js console
+        // but only on desktop. difficult to reach when in iframe
+        python.config.debug = true
+        custom_onload(false)
+        Module.PyRun_SimpleString("shell.uptime()")
+        window_resize()
+    }
 
-            for skull in skulls[:]:
-                skull.move()
-                if (skull.x < player.x + player.width and 
-                    skull.x + skull.width > player.x and
-                    skull.y < player.y + player.height and 
-                    skull.y + skull.height > player.y):
-                    lives -= 1
-                    skull.remove()
-                    skulls.remove(skull)
-                    if not power_up_active:
-                        HIT_SOUND.play()
-                elif skull.x < -skull.width:
-                    skull.remove()
-                    skulls.remove(skull)
+    function info_inline(data){
+        document.getElementById("info").innerHTML = data
+    }
 
-            if lives <= 0:
-                game_state = "game_over"
-                save_high_score(high_score)
+    function info_online(url) {
+        // display info about current APK
+        fetch( url /*, options */)
+            .then((response) => response.text())
+            .then((html) => {
+                info_inline(html);
+        })
+        .catch((error) => {
+            console.warn(error);
+        });
+    }
 
-            screen.blit(BACKGROUND, (0, 0))
-            player.draw(game_state)
-            for cattle in cattle_list:
-                cattle.draw()
-            for power_up in power_ups:
-                power_up.draw()
-            for obstacle in obstacles:
-                obstacle.draw()
-            for skull in skulls:
-                skull.draw()
+    function frame_online(url) {
+        window.frames["iframe"].location = url;
+    }
 
-            score_text = font.render(f"Score: {score}", True, WHITE)
-            high_score_text = font.render(f"High: {high_score}", True, WHITE)
-            lives_text = font.render(f"Lives: {lives}", True, WHITE)
-            spacing = 50
-            total_width = score_text.get_width() + high_score_text.get_width() + lives_text.get_width() + 2 * spacing
-            start_x = (WIDTH - total_width) // 2
-            screen.blit(score_text, (start_x, 10))
-            screen.blit(high_score_text, (start_x + score_text.get_width() + spacing, 10))
-            screen.blit(lives_text, (start_x + score_text.get_width() + high_score_text.get_width() + 2 * spacing, 10))
+    </script>
 
-        elif game_state = "game_over":
-            screen.blit(BACKGROUND, (0, 0))
-            player.draw("play")
-            for entity in cattle_list + power_ups + obstacles + skulls:
-                entity.draw()
-
-            score_text = font.render(f"Score: {score}", True, WHITE)
-            high_score_text = font.render(f"High: {high_score}", True, WHITE)
-            lives_text = font.render(f"Lives: {lives}", True, WHITE)
-            spacing = 50
-            total_width = score_text.get_width() + high_score_text.get_width() + lives_text.get_width() + 2 * spacing
-            start_x = (WIDTH - total_width) // 2
-            screen.blit(score_text, (start_x, 10))
-            screen.blit(high_score_text, (start_x + score_text.get_width() + spacing, 10))
-            screen.blit(lives_text, (start_x + score_text.get_width() + high_score_text.get_width() + 2 * spacing, 10))
-
-            game_over_text = game_over_font.render("GAME OVER", True, WHITE)
-            screen.blit(game_over_text, game_over_text.get_rect(center=(WIDTH//2, HEIGHT//2 - 25)))
-
-            # Draw restart button
-            pygame.draw.rect(screen, GREEN, start_rect)
-            restart_text = button_font.render("RESTART", True, BLACK)
-            screen.blit(restart_text, restart_text.get_rect(center=start_rect.center))
-
-        pygame.display.flip()
-        clock.tick(60)
-        await asyncio.sleep(0)
-
-    pygame.quit()
-
-asyncio.run(main())
+</body>
+</html>
