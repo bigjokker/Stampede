@@ -17,7 +17,7 @@ WIDTH = 800
 HEIGHT = 600
 flags = pygame.RESIZABLE | pygame.SCALED
 screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
-pygame.display.set_caption("Stampede - Middle Gameplay Area")
+pygame.display.set_caption("Stampede")
 
 # Colors
 WHITE = (255, 255, 255)
@@ -96,7 +96,7 @@ else:
     SKULL = sprite_files["skull.png"]
 
 # Load sounds with platform-specific extension
-pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096, allowedchanges=0)  # Add allowedchanges=0 to avoid iOS issues
 
 # Reset audio to default device on Windows (local only)
 if os.name == 'nt' and sys.platform != "emscripten":
@@ -655,7 +655,7 @@ async def main():
             screen.blit(high_score_text, (start_x + score_text.get_width() + spacing, 10))
             screen.blit(lives_text, (start_x + score_text.get_width() + high_score_text.get_width() + 2 * spacing, 10))
 
-        elif game_state == "game_over":
+        elif game_state = "game_over":
             screen.blit(BACKGROUND, (0, 0))
             player.draw("play")
             for entity in cattle_list + power_ups + obstacles + skulls:
